@@ -1,0 +1,6 @@
+streamlit
+pandas
+numpy
+matplotlib
+openpyxl   # if you read .xlsx
+plotly     # if you use it
