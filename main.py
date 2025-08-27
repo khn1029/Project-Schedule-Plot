@@ -10,7 +10,7 @@ st.set_page_config(page_title="Project Schedule Plot", layout="wide")  # ← wid
 st.header("Project Schedule Plot")
 
 # reads clipboard as table
-initialization={'data':None,'read_data':False,"W_dict":dict(),"data_dict":dict(),'current_df':''}
+initialization={'data':None,'read_data':False,"W_dict":dict(),"data_dict":dict(),'current_df':'','copy_df':False}
 for key,value in initialization.items():
     if key not in st.session_state:
         st.session_state[key]=value
@@ -19,6 +19,17 @@ df=pd.DataFrame()
 def get_name_for_df():
     return f"Schedule_{len(st.session_state['data_dict'])}"
 
+def clean_df(df,header_first_row=False):
+    df_new = df.copy()
+    if header_first_row:
+        if len(df_new)>0:
+            hdr = df_new.iloc[0,:].astype(str).str.strip()
+            if hdr.notna().any():
+                df_new.columns = hdr
+                df_new = df_new.iloc[1:]
+    df_new = df_new.replace("", np.nan).dropna(axis=1, how="all")
+    df_new = df_new.dropna()
+    return df_new
 #### Upload files
 uploaded = st.file_uploader("Upload .csv or .xlsx schedule files", accept_multiple_files=True, type=["csv", "xlsx", "xls"])
 
@@ -33,7 +44,7 @@ if st.button('Upload Files'):
                 try:
                     df = pd.read_csv(up)
                     key = (stem)
-                    st.session_state["data_dict"][key] = df
+                    st.session_state["data_dict"][key] = clean_df(df)
                 except Exception as e:
                     st.error(f"Failed to read CSV '{up.name}': {e}")
     
@@ -43,27 +54,41 @@ if st.button('Upload Files'):
                     for sheet in xls.sheet_names:
                         df = pd.read_excel(xls, sheet_name=sheet)
                         key = (f"{stem}__{sheet}")
-                        st.session_state["data_dict"][key] = df
+                        st.session_state["data_dict"][key] = clean_df(df)
                 except Exception as e:
                     st.error(f"Failed to read Excel '{up.name}': {e}")
 
-st.write("OR")
+# st.write("OR")
 
+# if st.button("Copy Data to Streamlit Table (first row will be used as header)"):
+#     st.session_state['copy_df']=True
+#     df=pd.DataFrame(np.full((1, 8), "", dtype=object))
+#     df_name=get_name_for_df()
+#     st.session_state['data_dict'][df_name]=df
+#     st.session_state['read_data']=True
+    # copied_df = st.data_editor(blank_df,
+    #                         use_container_width=True,
+    #                         num_rows="dynamic",          # allow add/remove rows
+    #                         hide_index=True,
+    #                         key="editor"                 # persist edits across reruns
+    #                         )
+
+    
 # Paste in Excel, then run thisdddddddddddddddd
-if st.button("Read data from clipboard"):
-    df = pd.read_clipboard()
-    if df is None or len(df)==0:
-        raise ValueError(st.error("Error: No Excel tables founded in clipboard. Please copy a table from Excel and try again"))
-    df_name=get_name_for_df()
-    st.session_state['data_dict'][df_name]=df
-    st.session_state['read_data']=True
+# if st.button("Read data from clipboard"):
+#     df = pd.read_clipboard()
+#     if df is None or len(df)==0:
+#         raise ValueError(st.error("Error: No Excel tables founded in clipboard. Please copy a table from Excel and try again"))
+#     df_name=get_name_for_df()
+#     st.session_state['data_dict'][df_name]=df
+#     st.session_state['read_data']=True
 # if st.uploader(""):
 if len(st.session_state['data_dict'])>0:
     selected_df_name=st.selectbox("Select schedule",list(st.session_state["data_dict"].keys()))
     df=st.session_state['data_dict'][selected_df_name]
 
-if len(df)>0:
-    st.subheader('Preview of Data')
+if len(df)>0 or st.session_state['copy_df']:
+    st.subheader('Preview and Edit Data (can copy/paste new data here if needed')
     edited = st.data_editor(df,
                             use_container_width=True,
                             num_rows="dynamic",          # allow add/remove rows
@@ -71,11 +96,11 @@ if len(df)>0:
                             key="editor"                 # persist edits across reruns
                             )
     # update dataframe
-    df=edited.copy()
-    st.session_state['data_dict'][selected_df_name]=df
+    df=clean_df(edited.copy(),False)
     
-    # df=st.session_state['data']
-    
+    st.session_state['data_dict'][selected_df_name]=(df)
+    # st.dataframe(df)
+    # try:
     start_col=[i for i in df.columns if 'start' in i.lower()][0]
     end_col=[i for i in df.columns if 'end' in i.lower()][0]
     project=[i for i in df.columns if 'whp' in i.lower() or 'proj' in i.lower()][0]
@@ -182,3 +207,5 @@ if len(df)>0:
         st.session_state["data_dict"].pop(selected_df_name, None)
         st.session_state["W_dict"].pop(selected_df_name, None)
         st.rerun()
+    # except:
+    #     st.write("Please copy dataframe to the grid before proceeding")
